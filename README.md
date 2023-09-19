@@ -57,6 +57,26 @@ class Test {
 }
 ```
 
+## Also supports `autoModel`
+
+`autoModel` is another helper I added to automatically give identifiers to models, based on their relative paths
+
+#### Input
+
+```ts
+@autoModel
+class Test {
+}
+```
+
+#### Output
+```ts
+import { model as model_1 } from 'mobx-keystone';
+
+@model_1("relative/path/filename")
+class Test {
+}
+```
 
 ## How to install
 
