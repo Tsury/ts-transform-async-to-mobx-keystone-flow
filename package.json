@@ -1,0 +1,25 @@
+{
+  "name": "ts-transform-async-to-mobx-keystone-flow",
+  "version": "0.0.1",
+  "description": "Typescript transformer for converting async functions into generators wrapped with mobx keystone flow",
+  "keywords": [
+    "mobx",
+    "mobx-keystone",
+    "typescript",
+    "typescript-transformer",
+    "modelFlow",
+    "flow"
+  ],
+  "author": "Tsury",
+  "license": "MIT",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "devDependencies": {
+    "rimraf": "^5.0.1",
+    "typescript": "^5.2.2"
+  },
+  "repository": "git@github.com:aurornz/ts-transform-async-to-mobx-keystone-flow.git",
+  "scripts": {
+    "build": "rimraf lib && tsc"
+  }
+}
