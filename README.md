@@ -75,7 +75,7 @@ yarn add ts-transform-async-to-mobx-keystone-flow -D
 You may need to add a reference to this package's typescript definition file in order to declare the global `transformToMobxKeystoneFlow` function:
 
 ```ts
-/// <reference path="node_modules/ts-transform-async-to-mobx--keystone-flow/transformToMobxKeystoneFlow.d.ts" />
+/// <reference path="node_modules/ts-transform-async-to-mobx-keystone-flow/transformToMobxKeystoneFlow.d.ts" />
 ```
 
 It can be added to a `global.d.ts` file to access `transformToMobxKeystoneFlow` in all the project files.
