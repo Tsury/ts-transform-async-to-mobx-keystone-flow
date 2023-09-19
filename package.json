@@ -13,12 +13,16 @@
   "author": "Tsury",
   "license": "MIT",
   "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "typings": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "transformToMobxKeystoneFlow.d.ts"
+  ],
   "devDependencies": {
     "rimraf": "^5.0.1",
     "typescript": "^5.2.2"
   },
-  "repository": "git@github.com:aurornz/ts-transform-async-to-mobx-keystone-flow.git",
   "scripts": {
     "build": "rimraf lib && tsc"
   }
