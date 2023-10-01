@@ -1,5 +1,6 @@
 {
   "name": "ts-transform-async-to-mobx-keystone-flow",
+  "author": "Amit Tsur",
   "version": "0.0.5",
   "type": "module",
   "description": "Typescript transformer for converting async functions into generators wrapped with mobx keystone flow",
