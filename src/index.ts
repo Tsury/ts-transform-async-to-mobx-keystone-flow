@@ -1,17 +1,18 @@
-import type { Modifier } from 'typescript';
-import ts from 'typescript';
+import type { Modifier } from "typescript";
+import ts from "typescript";
 
 // Seems like isAsyncFunction is not exported from typescript
-declare module 'typescript' {
+declare module "typescript" {
   function isAsyncFunction(node: ts.Node): boolean;
 }
 
 export interface Options {
   mobxKeystonePackage: string;
+  generateModelNameFromFilename?: (filename: string) => string;
 }
 
-const autoFlow = 'autoFlow';
-const modelFlow = 'modelFlow';
+const autoFlow = "autoFlow";
+const modelFlow = "modelFlow";
 
 /**
  * 1. Look for functions marked decorated with @autoFlow or inside an autoFlow(...) call
@@ -20,59 +21,82 @@ const modelFlow = 'modelFlow';
  * 4. Look for classes marked with @autoModel
  * 5. Transform them into classes marked with @model
  */
-export default function createTransformer({
-  mobxKeystonePackage: mobxKeystonePackage = 'mobx-keystone',
-}: Partial<Options> = {}): ts.TransformerFactory<ts.SourceFile> {
-  return (context) => (file) => visitSourceFile(mobxKeystonePackage, file, context);
+export default function createTransformer(
+  options?: Partial<Options>
+): ts.TransformerFactory<ts.SourceFile> {
+  return (context) => (file) => visitSourceFile(file, context, options);
 }
 
 function visitSourceFile(
-  mobxPackage: string,
   source: ts.SourceFile,
   context: ts.TransformationContext,
+  options?: Partial<Options>
 ): ts.SourceFile {
   const mobxNamespaceImport = ts.factory.createUniqueName(
-    'mobxKs',
-    ts.GeneratedIdentifierFlags.Optimistic | ts.GeneratedIdentifierFlags.FileLevel,
+    "mobxKs",
+    ts.GeneratedIdentifierFlags.Optimistic |
+      ts.GeneratedIdentifierFlags.FileLevel
   );
 
-  const _asyncExpression = createMobxKsPropertyAccessExpression(mobxNamespaceImport, '_async');
-  const _awaitExpression = createMobxKsPropertyAccessExpression(mobxNamespaceImport, '_await');
-  const modelFlowExpression = createMobxKsPropertyAccessExpression(mobxNamespaceImport, modelFlow);
-  const modelExpression = createMobxKsPropertyAccessExpression(mobxNamespaceImport, 'model');
+  const _asyncExpression = createMobxKsPropertyAccessExpression(
+    mobxNamespaceImport,
+    "_async"
+  );
+  const _awaitExpression = createMobxKsPropertyAccessExpression(
+    mobxNamespaceImport,
+    "_await"
+  );
+  const modelFlowExpression = createMobxKsPropertyAccessExpression(
+    mobxNamespaceImport,
+    modelFlow
+  );
+  const modelExpression = createMobxKsPropertyAccessExpression(
+    mobxNamespaceImport,
+    "model"
+  );
 
   let transformed = false;
-  let className = '';
+  let className = "";
 
-  const resSource = addImportMobxStatement(source, mobxPackage, mobxNamespaceImport);
+  const resSource = addImportMobxStatement(
+    source,
+    options?.mobxKeystonePackage || "mobx-keystone",
+    mobxNamespaceImport
+  );
 
   const functionsToAddDecoratorsTo: string[] = [];
 
   const visitor: ts.Visitor = (node) => {
     if (ts.isClassDeclaration(node)) {
-      className = ts.getNameOfDeclaration(node)?.getText() ?? '';
+      className = ts.getNameOfDeclaration(node)?.getText() ?? "";
 
-      const autoModelDecorator = node.modifiers?.find((x) => x.getText().includes('autoModel'));
+      const autoModelDecorator = node.modifiers?.find((x) =>
+        x.getText().includes("autoModel")
+      );
 
       if (autoModelDecorator) {
         transformed = true;
 
         // Remove the autoModel decorator and replace it with a model decorator
         // Todo: Might need to ensure that fileName is safe to use as a model name
+        const modelName = options?.generateModelNameFromFilename
+          ? options?.generateModelNameFromFilename(resSource.fileName)
+          : resSource.fileName;
+
         node = ts.factory.updateClassDeclaration(
           node,
           [
             ...(node.modifiers?.filter((x) => x !== autoModelDecorator) ?? []),
             ts.factory.createDecorator(
               ts.factory.createCallExpression(modelExpression, undefined, [
-                ts.factory.createStringLiteral(resSource.fileName),
-              ]),
+                ts.factory.createStringLiteral(modelName),
+              ])
             ),
           ],
           node.name,
           node.typeParameters,
           node.heritageClauses,
-          node.members,
+          node.members
         );
       }
     }
@@ -100,14 +124,22 @@ function visitSourceFile(
             // myFunc = autoFlow(async function (this: MYCLASS, ...args) { ... }
             if (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) {
               transformed = true;
-              const newFunctionBlock = createNewFunctionBlock(fn, _awaitExpression, context);
-              return transformFunction(newFunctionBlock, _asyncExpression, className);
+              const newFunctionBlock = createNewFunctionBlock(
+                fn,
+                _awaitExpression,
+                context
+              );
+              return transformFunction(
+                newFunctionBlock,
+                _asyncExpression,
+                className
+              );
             }
           }
 
           return node;
         },
-        context,
+        context
       );
     }
 
@@ -120,16 +152,24 @@ function visitSourceFile(
       const pd = ts.isPropertyDeclaration(newNode) ? newNode : undefined;
 
       if (!pd) {
-        throw new Error(errorMessage('Could not resolve property declaration'));
+        throw new Error(errorMessage("Could not resolve property declaration"));
       }
 
-      return transformPropertyDeclaration(pd, newNode.initializer, modelFlowExpression);
+      return transformPropertyDeclaration(
+        pd,
+        newNode.initializer,
+        modelFlowExpression
+      );
     }
 
     // Transform decorated methods that look like this:
     // @autoFlow async myFunc(...args) { ... }
     // They are not actually transformed, but changed into properties
-    if (ts.isMethodDeclaration(node) && hasDecorator(node.modifiers, autoFlow) && node.body) {
+    if (
+      ts.isMethodDeclaration(node) &&
+      hasDecorator(node.modifiers, autoFlow) &&
+      node.body
+    ) {
       const functionExpression = ts.factory.createFunctionExpression(
         node.modifiers?.map((x) => x as Modifier),
         node.asteriskToken,
@@ -137,7 +177,7 @@ function visitSourceFile(
         node.typeParameters,
         node.parameters,
         node.type,
-        node.body,
+        node.body
       );
 
       node = ts.factory.createPropertyDeclaration(
@@ -145,7 +185,7 @@ function visitSourceFile(
         node.name,
         node.questionToken,
         node.type,
-        functionExpression,
+        functionExpression
       );
     }
 
@@ -166,7 +206,7 @@ function visitSourceFile(
         return transformPropertyDeclaration(
           node,
           transformFunction(newFn, _asyncExpression, className),
-          modelFlowExpression,
+          modelFlowExpression
         );
       }
     }
@@ -185,22 +225,27 @@ function visitSourceFile(
   return source;
 }
 
-const createMobxKsPropertyAccessExpression = (mobxKsNamespaceImport: ts.Identifier, name: string) =>
+const createMobxKsPropertyAccessExpression = (
+  mobxKsNamespaceImport: ts.Identifier,
+  name: string
+) =>
   ts.factory.createPropertyAccessExpression(
     mobxKsNamespaceImport,
-    ts.factory.createIdentifier(name),
+    ts.factory.createIdentifier(name)
   );
 
 function createNewFunctionBlock(
   fn: ts.ArrowFunction | ts.FunctionExpression,
   _awaitExpression: ts.Expression,
-  context: ts.TransformationContext,
+  context: ts.TransformationContext
 ) {
   const replaceYieldAndCheckNested: ts.Visitor = (node) => {
     if (ts.isAwaitExpression(node)) {
       return ts.factory.createYieldExpression(
         ts.factory.createToken(ts.SyntaxKind.AsteriskToken),
-        ts.factory.createCallExpression(_awaitExpression, undefined, [node.expression]),
+        ts.factory.createCallExpression(_awaitExpression, undefined, [
+          node.expression,
+        ])
       );
     }
 
@@ -222,7 +267,7 @@ function createNewFunctionBlock(
         fn.parameters,
         fn.type,
         fn.equalsGreaterThanToken,
-        newFunctionBody,
+        newFunctionBody
       )
     : ts.factory.updateFunctionExpression(
         fn,
@@ -232,7 +277,7 @@ function createNewFunctionBlock(
         fn.typeParameters,
         fn.parameters,
         fn.type,
-        newFunctionBody as ts.Block,
+        newFunctionBody as ts.Block
       );
 }
 
@@ -243,16 +288,16 @@ function createNewFunctionBlock(
 function addImportMobxStatement(
   source: ts.SourceFile,
   mobxPackage: string,
-  mobxNamespaceImport: ts.Identifier,
+  mobxNamespaceImport: ts.Identifier
 ) {
   const importFlowStatement = ts.factory.createImportDeclaration(
     undefined,
     ts.factory.createImportClause(
       false,
       undefined,
-      ts.factory.createNamespaceImport(mobxNamespaceImport),
+      ts.factory.createNamespaceImport(mobxNamespaceImport)
     ),
-    ts.factory.createStringLiteral(mobxPackage),
+    ts.factory.createStringLiteral(mobxPackage)
   );
 
   return ts.factory.updateSourceFile(
@@ -262,7 +307,7 @@ function addImportMobxStatement(
     source.referencedFiles,
     source.typeReferenceDirectives,
     source.hasNoDefaultLib,
-    source.libReferenceDirectives,
+    source.libReferenceDirectives
   );
 }
 
@@ -272,24 +317,26 @@ function addImportMobxStatement(
 function transformFunction(
   fn: ts.FunctionExpression | ts.ArrowFunction,
   asyncIdentifier: ts.Expression,
-  className: string,
+  className: string
 ) {
   if (!isAsyncFunction(fn)) {
     throw new Error(
-      errorMessage(`Could not resolve expression as async function: ${fn.getFullText()}`),
+      errorMessage(
+        `Could not resolve expression as async function: ${fn.getFullText()}`
+      )
     );
   }
 
-  const hasThisParam = fn.parameters.find((x) => x.name.getText() === 'this');
+  const hasThisParam = fn.parameters.find((x) => x.name.getText() === "this");
   const additionalParams = hasThisParam
     ? []
     : [
         ts.factory.createParameterDeclaration(
           undefined,
           undefined,
-          'this',
+          "this",
           undefined,
-          ts.factory.createTypeReferenceNode(className),
+          ts.factory.createTypeReferenceNode(className)
         ),
       ];
 
@@ -301,7 +348,7 @@ function transformFunction(
       undefined,
       additionalParams.concat(fn.parameters),
       undefined,
-      fn.body as ts.Block,
+      fn.body as ts.Block
     ),
   ]);
 }
@@ -312,9 +359,12 @@ function transformFunction(
 function transformPropertyDeclaration(
   node: ts.PropertyDeclaration,
   newFunctionBlock: ts.CallExpression | ts.Expression | undefined,
-  modelFlowExpression: ts.Expression,
+  modelFlowExpression: ts.Expression
 ): ts.PropertyDeclaration {
-  const newModifiers = ensureDecorators(Array.from(node.modifiers ?? []), modelFlowExpression);
+  const newModifiers = ensureDecorators(
+    Array.from(node.modifiers ?? []),
+    modelFlowExpression
+  );
 
   return ts.factory.updatePropertyDeclaration(
     node,
@@ -322,7 +372,7 @@ function transformPropertyDeclaration(
     node.name,
     node.questionToken,
     node.type,
-    newFunctionBlock,
+    newFunctionBlock
   );
 }
 
@@ -331,15 +381,17 @@ const isSpecificDecorator = (decorator: ts.ModifierLike, name: string) =>
   ts.isIdentifier(decorator.expression) &&
   decorator.expression.text === name;
 
-const hasDecorator = (decorators: ts.NodeArray<ts.ModifierLike> | undefined, name: string) =>
-  !!decorators?.filter((x) => isSpecificDecorator(x, name)).length;
+const hasDecorator = (
+  decorators: ts.NodeArray<ts.ModifierLike> | undefined,
+  name: string
+) => !!decorators?.filter((x) => isSpecificDecorator(x, name)).length;
 
 /**
  * A helper to ensure that the modelFlow decorator is present and that autoFlow and async are removed
  */
 function ensureDecorators(
   modifiers: ts.ModifierLike[] | undefined,
-  modelFlowExpression: ts.Expression,
+  modelFlowExpression: ts.Expression
 ): ts.ModifierLike[] | undefined {
   const res =
     modifiers?.reduce<ts.ModifierLike[]>((acc, x) => {
@@ -371,7 +423,7 @@ const isAsyncFunction = (node: ts.Node): boolean => {
   // optional/undefined isAsyncFunction
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!ts.isAsyncFunction) {
-    throw new Error(errorMessage('Could not resolve isAsyncFunction'));
+    throw new Error(errorMessage("Could not resolve isAsyncFunction"));
   }
 
   return ts.isAsyncFunction(node);

@@ -59,7 +59,7 @@ class Test {
 
 ## Also supports `autoModel`
 
-`autoModel` is another helper I added to automatically give identifiers to models, based on their relative paths
+`autoModel` is another helper I added to automatically give identifiers to models, based on their full name. You can send an optional function to generate a model name based on the full name if you don't want to use it as-is.
 
 #### Input
 
@@ -177,3 +177,7 @@ module.exports = {
 - mobxKeystonePackage `string`
 
   default: `'mobx-keystone'`
+
+- generateModelNameFromFilename `(string) => string`
+
+  default: `undefined`
