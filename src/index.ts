@@ -8,7 +8,7 @@ declare module "typescript" {
 
 export interface Options {
   mobxKeystonePackage: string;
-  generateModelNameFromFilename?: (filename: string) => string;
+  generateModelNameFromFilename: (filename: string) => string;
 }
 
 const autoFlow = "autoFlow";
@@ -79,9 +79,9 @@ function visitSourceFile(
 
         // Remove the autoModel decorator and replace it with a model decorator
         // Todo: Might need to ensure that fileName is safe to use as a model name
-        const modelName = options?.generateModelNameFromFilename
-          ? options?.generateModelNameFromFilename(resSource.fileName)
-          : resSource.fileName;
+        const modelName =
+          options?.generateModelNameFromFilename?.(resSource.fileName) ??
+          resSource.fileName;
 
         node = ts.factory.updateClassDeclaration(
           node,
